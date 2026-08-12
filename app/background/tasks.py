@@ -144,7 +144,7 @@ async def process_emoji_event(payload: dict) -> None:
             
         else:
             if loading_comment_id:
-                await update_comment(project_id, mr_iid, loading_comment_id, "❌ **Analysis Failed:** No valid code changes found to analyze.")
+                await update_comment(project_id, mr_iid, loading_comment_id, "ℹ️ **Notice:** No modified code files were found in this Merge Request to analyze. Please add some code changes and try again! 😊")
 
     except Exception:
         logger.exception("Failed to process emoji event")
