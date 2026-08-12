@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mrreviewer456
+      POSTGRES_DB: ai_code_reviewer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  app:
+    build: .
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:mrreviewer456@db:5432/ai_code_reviewer_db
+    env_file:
+      - .env
+volumes:
+  postgres_data:
