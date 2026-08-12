@@ -5,7 +5,9 @@ Entry point of the FastAPI application.
 Starts the server, registers routers, and initializes the DB connection.
 """
 
+import os
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import webhooks
@@ -16,18 +18,34 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
 )
 
+logger = logging.getLogger("main")
+
+# Validate required environment variables at startup
+REQUIRED_ENV_VARS = ["GITLAB_URL", "GITLAB_TOKEN", "GOOGLE_API_KEY", "DATABASE_URL"]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern FastAPI lifespan handler (replaces deprecated on_event)."""
+    # Startup
+    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if missing:
+        logger.error("Missing required environment variables: %s", ", ".join(missing))
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+    init_db()
+    logger.info("Database ready, server started.")
+    yield
+    # Shutdown
+    logger.info("Server shutting down.")
+
+
 app = FastAPI(
     title="MR Reviewer",
     description="AI system for automatic GitLab Merge Request review",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-def on_startup():
-    # Creates tables if they don't exist yet (dev only).
-    init_db()
-    logging.getLogger("main").info("Database ready, server started.")
 
 
 @app.get("/health")
@@ -43,4 +61,5 @@ app.include_router(webhooks.router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    debug = os.getenv("DEBUG", "false").lower() == "true"
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=debug)

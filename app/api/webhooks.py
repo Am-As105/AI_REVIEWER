@@ -8,7 +8,7 @@ to avoid GitLab timing out the request.
 """
 
 import os
-import json
+import hmac
 import logging
 from fastapi import APIRouter, Request, Header, HTTPException, BackgroundTasks
 
@@ -29,6 +29,8 @@ GITLAB_BOT_USERNAME = os.getenv("GITLAB_BOT_USERNAME", "")
 # MR statuses we want to process (ignore close/merge, not relevant for analysis)
 RELEVANT_ACTIONS = {"open", "update", "reopen"}
 
+DEBUG_MODE = os.getenv("DEBUG", "false").lower() == "true"
+
 
 @router.post("/gitlab")
 async def gitlab_webhook(
@@ -38,16 +40,26 @@ async def gitlab_webhook(
     x_gitlab_event: str = Header(default=None),
 ):
     # 1. Verify the secret configured in GitLab (Settings > Webhooks)
-    if GITLAB_SECRET_TOKEN and x_gitlab_token != GITLAB_SECRET_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    if GITLAB_SECRET_TOKEN:
+        if not x_gitlab_token or not hmac.compare_digest(x_gitlab_token, GITLAB_SECRET_TOKEN):
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-    payload = await request.json()
+    # 2. Parse the payload safely
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    # DEBUG: Dump the payload to a file so we can see what GitLab actually sends
-    with open("webhook_debug.json", "a") as f:
-        f.write(json.dumps(payload) + "\n")
+    # 3. Debug logging (only in development mode)
+    if DEBUG_MODE:
+        import json
+        try:
+            with open("webhook_debug.json", "a") as f:
+                f.write(json.dumps(payload) + "\n")
+        except IOError:
+            logger.warning("Could not write debug payload to file")
 
-    # 2. Check if it's an Emoji click
+    # 4. Check if it's an Emoji click
     # This allows the AI to respond when a user clicks the interactive emoji menu
     if payload.get("object_kind") == "emoji":
         triggering_user = payload.get("user", {}).get("username")
@@ -67,7 +79,7 @@ async def gitlab_webhook(
 
         return {"status": "ignored", "reason": "unknown emoji event"}
 
-    # 3. Check if it's a Merge Request event
+    # 5. Check if it's a Merge Request event
     if x_gitlab_event != "Merge Request Hook":
         logger.info("Event ignored: %s", x_gitlab_event)
         return {"status": "ignored", "reason": "not a merge request or emoji event"}
@@ -86,7 +98,7 @@ async def gitlab_webhook(
         action,
     )
 
-    # 4. Respond immediately to GitLab (avoids the ~10s timeout)
+    # 6. Respond immediately to GitLab (avoids the ~10s timeout)
     #    The actual processing (diff, AI, DB, comments) runs in the background.
     background_tasks.add_task(process_merge_request_event, payload)
 
