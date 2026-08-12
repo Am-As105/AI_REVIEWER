@@ -7,8 +7,8 @@ load_dotenv()
 
 logger = logging.getLogger("gitlab_client")
 
-GITLAB_URL = os.getenv("GITLAB_URL")
-GITLAB_TOKEN = os.getenv("GITLAB_TOKEN")
+GITLAB_URL = os.getenv("GITLAB_URL", "").rstrip("/")
+GITLAB_TOKEN = os.getenv("GITLAB_TOKEN", "").strip()
 
 
 async def get_current_user_id() -> int | None:

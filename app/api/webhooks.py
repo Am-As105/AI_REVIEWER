@@ -18,13 +18,13 @@ logger = logging.getLogger("webhooks")
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
-GITLAB_SECRET_TOKEN = os.getenv("GITLAB_WEBHOOK_SECRET", "")
+GITLAB_SECRET_TOKEN = os.getenv("GITLAB_WEBHOOK_SECRET", "").strip()
 
 # Username of the account used by the bot to post comments/reactions.
 # Must match the account behind GITLAB_TOKEN, so we can ignore emoji
 # events the bot triggers on itself (e.g. posting its own menu reactions),
 # which would otherwise cause an infinite loop of re-triggered analyses.
-GITLAB_BOT_USERNAME = os.getenv("GITLAB_BOT_USERNAME", "")
+GITLAB_BOT_USERNAME = os.getenv("GITLAB_BOT_USERNAME", "").strip()
 
 # MR statuses we want to process (ignore close/merge, not relevant for analysis)
 RELEVANT_ACTIONS = {"open", "update", "reopen"}
